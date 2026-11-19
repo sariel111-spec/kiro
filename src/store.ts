@@ -105,6 +105,14 @@ export async function connect(r:Remote){const probe=await fetch(`https://api.git
  if(probe.status===401)throw new Error('令牌不对，或已经过期');if(probe.status===404)throw new Error('找不到这个仓库，或令牌没有选中它');if(!probe.ok)throw new Error('连接失败（'+probe.status+'）');
  const j=await probe.json();if(!j.permissions?.push)throw new Error('令牌只有读取权限，需要 Contents: Read and write');if(!j.private)throw new Error('这个仓库是公开的。为了不让内容被别人看到，请换一个私有仓库');
  remote=r;await put('remote',r);await syncNow()}
+// The After Class site lives on the same address and may already hold a token on this device.
+// Reuse it instead of asking for it again; the value never leaves the browser.
+const SIBLING='after-class-pages';
+async function siblingToken():Promise<string|null>{try{const list=await indexedDB.databases?.();if(!list?.some(d=>d.name===SIBLING))return null}catch{return null}
+ return new Promise(res=>{const r=indexedDB.open(SIBLING);r.onupgradeneeded=()=>{r.transaction?.abort()};r.onerror=()=>res(null);
+  r.onsuccess=()=>{const d=r.result;try{if(!d.objectStoreNames.contains('kv')){d.close();return res(null)}const q=d.transaction('kv','readonly').objectStore('kv').get('config');q.onsuccess=()=>{d.close();const t=q.result?.token;res(typeof t==='string'&&t.length>20?t:null)};q.onerror=()=>{d.close();res(null)}}catch{d.close();res(null)}}})}
+export const hasSiblingToken=async()=>!!(await siblingToken());
+export async function connectWithSibling(owner:string,repo:string){const token=await siblingToken();if(!token)throw new Error('这台设备上没有找到已保存的令牌');await connect({owner,repo,token})}
 export async function disconnect(){remote=null;await del('remote');setSync('local','只保存在这台设备上')}
 export const getRemote=()=>remote?{owner:remote.owner,repo:remote.repo}:null;
 
