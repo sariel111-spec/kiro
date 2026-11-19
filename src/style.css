@@ -260,5 +260,3 @@ audio{width:100%;height:44px}.voice-row{display:flex;align-items:center;gap:8px}
 /* at night headings take Key's monospace */
 [data-theme=night] .screen-head h1{font-family:var(--mono);letter-spacing:.5px}[data-theme=night] .screen-head h1:before{content:'> ';color:var(--green)}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-delay:0s!important;transition-duration:.01ms!important}}
-
-.reuse{display:grid;gap:10px;padding:14px;border-radius:16px;background:var(--paper2);font-size:13.5px}.reuse .primary{justify-self:start}
