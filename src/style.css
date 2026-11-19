@@ -1,4 +1,4 @@
-/* 洛洛的手机 — warm daylight by default; at night the same phone turns into Key's screen. */
+/* 🐻 — warm daylight by default; at night the same phone turns into Key's screen. */
 :root{--bg:#fff6e0;--paper:#fffdf7;--paper2:#fff3d6;--ink:#5b3a1e;--soft:#a17c58;--line:#f1dfbd;--sun:#ffc93c;--orange:#ff9f1c;--pink:#ff8fa3;--sky:#5bb8f5;--green:#6ccf8e;--red:#ff5a5f;
  --shadow:0 10px 30px #b9792633;--round:ui-rounded,"SF Pro Rounded","Nunito","PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,sans-serif;--sans:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color-scheme:light}
 :root[data-theme=night]{--bg:#0f1424;--paper:#182036;--paper2:#1f2944;--ink:#f3ead2;--soft:#96a0bd;--line:#2b3658;--sun:#f6c453;--orange:#f6a13c;--pink:#ff8fa3;--sky:#6fc3ff;--green:#69d59a;--red:#ff6b6b;--shadow:0 10px 30px #0008;color-scheme:dark}
