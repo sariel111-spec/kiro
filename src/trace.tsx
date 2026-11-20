@@ -16,6 +16,7 @@ const isHis=(c:Chapter)=>hisCount(c)>0||!!c.kiro;
 const yearOf=(d:string)=>d.slice(0,4);
 // "3.12" is part 12 of videos[3]; a bare BV id is a single video.
 const vid=(ref:string,label:string,by?:string):Vid=>{const m=/^(\d+)\.(\d+)$/.exec(ref),bv=m?videos[+m[1]]:ref,p=m?m[2]:'1';
+ if(m&&!by)by=+m[1]<=4?CUT:+m[1]<=8?'Love_Kilo':undefined;
  return {label,by,page:`https://www.bilibili.com/video/${bv}${m?'?p='+p:''}`,embed:`https://player.bilibili.com/player.html?bvid=${bv}&p=${p}&autoplay=0`}};
 const finders=(q:string)=>[['B站',`https://search.bilibili.com/all?keyword=${encodeURIComponent(q)}`],['小红书',`https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(q)}`],['抖音',`https://www.douyin.com/search/${encodeURIComponent(q)}`]];
 const rars=['全部','UR','SP','SSR','SR','ER'];
@@ -31,8 +32,8 @@ for(const k of storyCards)labels.set(k.id,k.name);for(const r of rCards)labels.s
 
 const chapterInfo=(c:Chapter,g:Group,s:Season):Info=>({id:c.id,title:c.n+(c.title?' '+c.title:''),sub:s.name+(g.date?' · '+g.name+' · '+dot(g.date):''),when:s.name+' '+c.n,type:'主线',ids:[c.id,...partIds(c)],
  vids:[...(c.v?[vid(c.v,'整章')]:[]),...(c.hv?[vid(c.hv,c.v?'只看他的':'他的 cut',CUT)]:[])],q:s.id==='xy'?'周棋洛 西月国 剧情':`恋与制作人 ${s.name}主线 ${c.n} ${c.title}`});
-const partInfo=(c:Chapter,s:Season,id:string,name:string,ref?:string,cut=true):Info=>({id,title:s.name+' '+name,sub:c.n+(c.title?' '+c.title:''),when:s.name+' '+name,type:'主线',ids:[id],part:c,
- vids:ref?[vid(ref,'这一段',cut&&/^[0-4]\./.test(ref)?CUT:undefined)]:[],q:`周棋洛 主线 ${s.name} ${c.n}`});
+const partInfo=(c:Chapter,s:Season,id:string,name:string,ref?:string):Info=>({id,title:s.name+' '+name,sub:c.n+(c.title?' '+c.title:''),when:s.name+' '+name,type:'主线',ids:[id],part:c,
+ vids:ref?[vid(ref,'这一段')]:[],q:`周棋洛 主线 ${s.name} ${c.n}`});
 
 function Toggle({on,onClick,label}:{on:boolean;onClick:()=>void;label:string}){
  return <button className="tr-sun" aria-pressed={on} aria-label={(on?'取消点亮：':'点亮：')+label} onClick={onClick}><Sun size={18}/></button>}
@@ -142,7 +143,7 @@ export default function Trace({onBack}:{onBack:()=>void}){
    {v?<>
     {info.vids.length>1&&<div className="seg tr-pick">{info.vids.map((x,i)=><button key={x.label} aria-pressed={pick===i} onClick={()=>setPick(i)}>{x.label}</button>)}</div>}
     <div className="tr-player"><iframe key={v.embed} src={v.embed} title={info.title} allow="fullscreen; picture-in-picture" allowFullScreen/></div>
-    <p className="tr-credit"><span>{v.by?'视频来自 B站 UP 主 '+v.by:'视频来自 B站的主线剧情合集'}</span><a href={v.page} target="_blank" rel="noreferrer">在 B站打开<ExternalLink size={13}/></a></p>
+    <p className="tr-credit"><span>{v.by?'视频来自 B站 UP 主 '+v.by:'视频来自 B站'}</span><a href={v.page} target="_blank" rel="noreferrer">在 B站打开<ExternalLink size={13}/></a></p>
    </>:<p className="tr-note">这一条还没找到现成的剧情视频，可以直接去搜。</p>}
    <div className="tr-find"><span>{v?'换个地方找':'去搜'}</span>{finders(info.q).map(([name,url])=><a key={name} href={url} target="_blank" rel="noreferrer">{name}</a>)}</div>
    <div className="tr-sheet-act">
