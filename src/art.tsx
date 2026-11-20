@@ -27,6 +27,7 @@ export const stickers:Record<string,{name:string;art:ReactNode}>={
 // App icons: one object each, on a rounded tile.
 const tile=(bg:string,child:ReactNode)=><S><rect x="4" y="4" width="92" height="92" rx="24" fill={bg}/><rect x="4" y="4" width="92" height="46" rx="24" fill="#fff" opacity=".16"/>{child}</S>;
 export const appIcons:Record<string,ReactNode>={
+ trace:tile('#f4845f',<><path d="M24 74c8-22 18-28 27-16s19 4 27-26" fill="none" stroke="#fff" strokeWidth="5" strokeLinecap="round" strokeDasharray="1 10"/><circle cx="24" cy="74" r="7" fill="#fff"/><circle cx="51" cy="58" r="7" fill="#fff"/><circle cx="78" cy="32" r="13" fill="#ffd45e" stroke="#fff" strokeWidth="5"/></>),
  story:tile('#ff9f1c',<><rect x="20" y="30" width="60" height="44" rx="6" fill="#fff"/><path d="M20 38h60M20 66h60" stroke="#5b3a1e" strokeWidth="2"/><path d="M26 32v4M36 32v4M46 32v4M56 32v4M66 32v4M74 32v4M26 68v4M36 68v4M46 68v4M56 68v4M66 68v4M74 68v4" stroke="#5b3a1e" strokeWidth="3" strokeLinecap="round"/><path d="M44 44l16 8-16 8z" fill="#ff9f1c"/></>),
  moment:tile('#6ccf8e',<><circle cx="50" cy="50" r="26" fill="#fff"/><circle cx="50" cy="50" r="10" fill="#6ccf8e"/><path d="M50 24v16M72.500 37l-13.900 8M72.500 63l-13.900-8M50 76V60M27.500 63l13.900-8M27.500 37l13.900 8" stroke="#6ccf8e" strokeWidth="3"/></>),
  call:tile('#5bb8f5',<path d="M34 24c-6 2-10 8-8 16 4 18 16 30 34 34 8 2 14-2 16-8l-12-8-7 6c-8-3-13-8-16-16l6-7z" fill="#fff"/>),

@@ -2,12 +2,13 @@ import {useEffect,useRef,useState,type CSSProperties,type PointerEvent as RPE} f
 import {Sun,Moon,ChevronLeft,Cloud,CloudOff,Loader2,Download,Upload,Trash2,RotateCcw,ImagePlus,Check,Sparkles,Wallpaper,UserRound,TriangleAlert} from 'lucide-react';
 import {useStore,setHome,setSettings,saveAsset,prepareImage,connect,disconnect,getRemote,syncNow,exportBackup,importBackup,restoreRecord,purgeRecord,uid,type Kind,type Sticker} from './store';
 import {kinds,appOrder} from './kinds';
+import Trace from './trace';
 import {stickers as art,appIcons} from './art';
 import Screen,{Avatar} from './screens';
 import {Img,Toasts,toast,useAsset} from './ui';
 
-type Route=Kind|'settings'|'home';
-const routeOf=():Route=>{const h=location.hash.replace(/^#\/?/,'');return ([...appOrder,'settings'] as string[]).includes(h)?h as Route:'home'};
+type Route=Kind|'settings'|'trace'|'home';
+const routeOf=():Route=>{const h=location.hash.replace(/^#\/?/,'');return ([...appOrder,'settings','trace'] as string[]).includes(h)?h as Route:'home'};
 const pad=(n:number)=>String(n).padStart(2,'0');
 
 export default function App(){
@@ -22,6 +23,7 @@ export default function App(){
   <div className="device">
    {route==='home'?<HomeScreen now={now} decor={decor} setDecor={setDecor} open={open} syncState={sync.state}/>
    :route==='settings'?<Settings onBack={home} decorate={()=>{setDecor(true);home()}}/>
+   :route==='trace'?<Trace onBack={home}/>
    :<Screen key={route} kind={route} onBack={home}/>}
   </div>
   <Toasts/>
@@ -45,11 +47,11 @@ function HomeScreen({now,decor,setDecor,open,syncState}:{now:Date;decor:boolean;
   :<>
    <div className="clock" aria-hidden="true"><b>{pad(now.getHours())}<i>:</i>{pad(now.getMinutes())}</b><span>{now.getMonth()+1}月{now.getDate()}日 星期{days[now.getDay()]}</span></div>
    <div className="namecard"><Avatar id={h.avatar}/><div><b>周棋洛</b><span>{night?'Key · 在线':'今天也是晴天'}</span></div></div>
-   <nav className="apps" aria-label="应用">{(['fan','quote','day','settings'] as Route[]).map((k,i)=><AppIcon key={k} k={k} i={i} open={open}/>)}</nav>
+   <nav className="apps" aria-label="应用">{(['trace','fan','quote','day','settings'] as Route[]).map((k,i)=><AppIcon key={k} k={k} i={i} open={open}/>)}</nav>
    <nav className="dock" aria-label="常用">{(['story','moment','call','card'] as Route[]).map((k,i)=><AppIcon key={k} k={k} i={i+4} open={open} dock/>)}</nav>
   </>}
  </div>}
-function AppIcon({k,i,open,dock}:{k:Route;i:number;open:(r:Route,from?:HTMLElement)=>void;dock?:boolean}){const {state}=useStore(),name=k==='settings'?'设置':kinds[k as Kind].name,n=k==='settings'?0:state.records.filter(r=>r.kind===k&&!r.deleted).length;
+function AppIcon({k,i,open,dock}:{k:Route;i:number;open:(r:Route,from?:HTMLElement)=>void;dock?:boolean}){const {state}=useStore(),name=k==='settings'?'设置':k==='trace'?'痕迹':kinds[k as Kind].name,n=k==='settings'||k==='trace'?0:state.records.filter(r=>r.kind===k&&!r.deleted).length;
  return <button className="app" style={{'--i':i} as CSSProperties} onClick={e=>open(k,e.currentTarget)}><span className="app-ico">{appIcons[k]}{n>0&&!dock&&<em>{n}</em>}</span><span className="app-name">{name}</span></button>}
 
 // White rim around a transparent cut-out, so it reads as a sticker.

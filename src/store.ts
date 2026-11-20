@@ -8,7 +8,8 @@ export type Rec={id:string;kind:Kind;title:string;when:string;note:string;tags:s
 export type Sticker={id:string;art:string;asset?:string;x:number;y:number;size:number;rot:number};
 export type Home={wallpaper?:string;avatar?:string;stickers:Sticker[];updated:number};
 export type Settings={theme:'day'|'night';me:string;updated:number};
-export type State={version:1;records:Rec[];home:Home;settings:Settings};
+export type Mark={at:string;updated:number;off?:boolean};
+export type State={version:1;records:Rec[];home:Home;settings:Settings;marks:Record<string,Mark>};
 export type SyncInfo={state:'local'|'idle'|'syncing'|'error';message:string;at:number};
 
 const DB='kiro-phone',STORE='kv';
@@ -22,7 +23,7 @@ const keys=()=>tx<IDBValidKey[]>('readonly',s=>s.getAllKeys());
 
 export const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
 const defaultStickers=():Sticker[]=>[['sun',13,11,70,-8],['star',87,12,48,12],['sparkle',33,8,28,0],['rabbit',24,52,96,-8],['bear',73,55,116,6],['chips',49,62,58,10],['heart',50,45,36,-8],['daisy',90,40,42,-10],['mic',10,39,50,-14]].map(([art,x,y,size,rot])=>({id:uid(),art:art as string,x:x as number,y:y as number,size:size as number,rot:rot as number}));
-export const emptyState=():State=>({version:1,records:[{id:'seed-birthday',kind:'day',title:'周棋洛的生日',when:'',note:'',tags:[],images:[],extra:{date:'04-09',repeat:'每年'},order:0,fav:false,created:0,updated:0}],home:{stickers:defaultStickers(),updated:0},settings:{theme:'day',me:'',updated:0}});
+export const emptyState=():State=>({version:1,records:[{id:'seed-birthday',kind:'day',title:'周棋洛的生日',when:'',note:'',tags:[],images:[],extra:{date:'04-09',repeat:'每年'},order:0,fav:false,created:0,updated:0}],home:{stickers:defaultStickers(),updated:0},settings:{theme:'day',me:'',updated:0},marks:{}});
 
 let state:State=emptyState(),ready=false,sync:SyncInfo={state:'local',message:'只保存在这台设备上',at:0};
 const subs=new Set<()=>void>();
@@ -33,7 +34,7 @@ export const getState=()=>state;
 
 const clean=(s:Partial<State>|undefined):State=>{const e=emptyState();if(!s||typeof s!=='object')return e;
  return {version:1,records:Array.isArray(s.records)?s.records.filter(r=>r&&typeof r.id==='string').map(r=>({...r,tags:r.tags||[],images:r.images||[],extra:r.extra||{},note:r.note||'',when:r.when||'',title:r.title||''})):[],
-  home:{...e.home,...(s.home||{}),stickers:Array.isArray(s.home?.stickers)?s.home!.stickers:e.home.stickers},settings:{...e.settings,...(s.settings||{})}}};
+  home:{...e.home,...(s.home||{}),stickers:Array.isArray(s.home?.stickers)?s.home!.stickers:e.home.stickers},settings:{...e.settings,...(s.settings||{})},marks:s.marks&&typeof s.marks==='object'?s.marks:{}}};
 
 let saveTimer=0,pushTimer=0;
 function commit(next:State){state=next;emit();clearTimeout(saveTimer);saveTimer=window.setTimeout(()=>put('state',state).catch(()=>{}),120);clearTimeout(pushTimer);pushTimer=window.setTimeout(()=>syncNow().catch(()=>{}),2500)}
@@ -55,6 +56,9 @@ export function moveRecord(id:string,target:string,after:boolean){const me=state
  const pos=new Map(list.map((r,i)=>[r.id,i])),now=Date.now();
  commit({...state,records:state.records.map(r=>pos.has(r.id)&&r.order!==pos.get(r.id)?{...r,order:pos.get(r.id)!,updated:now}:r)})}
 export function setHome(patch:Partial<Home>){commit({...state,home:{...state.home,...patch,updated:Date.now()}})}
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+// Lighting a catalogue entry. Unlighting keeps a tombstone so another device does not light it again.
+export function setMarks(ids:string[],on:boolean,at?:string){const now=Date.now(),marks={...state.marks};for(const id of ids){const old=marks[id];if(on)marks[id]={at:at||(old&&!old.off?old.at:today()),updated:now};else if(old&&!old.off)marks[id]={at:old.at,updated:now,off:true}}commit({...state,marks})}
 export function setSettings(patch:Partial<Settings>){commit({...state,settings:{...state.settings,...patch,updated:Date.now()}})}
 
 // ── pictures and recordings ──
@@ -82,7 +86,8 @@ const utf8=(s:string)=>b64(new TextEncoder().encode(s).buffer as ArrayBuffer);
 async function fetchAsset(id:string){if(!remote)return null;try{const r=await api('assets/'+encodeURIComponent(id),{},true);return r.ok?await r.blob():null}catch{return null}}
 const newer=<T extends {updated:number}>(a:T,b:T|undefined)=>!b||a.updated>=b.updated?a:b;
 export function merge(mine:State,theirs:State):State{const by=new Map(theirs.records.map(r=>[r.id,r]));for(const r of mine.records)by.set(r.id,newer(r,by.get(r.id)));
- return {version:1,records:[...by.values()],home:newer(mine.home,theirs.home),settings:newer(mine.settings,theirs.settings)}}
+ const marks:Record<string,Mark>={...theirs.marks};for(const k in mine.marks)marks[k]=newer(mine.marks[k],marks[k]);
+ return {version:1,records:[...by.values()],home:newer(mine.home,theirs.home),settings:newer(mine.settings,theirs.settings),marks}}
 const setSync=(s:SyncInfo['state'],message:string)=>{sync={state:s,message,at:Date.now()};emit()};
 let running:Promise<void>|null=null,again=false;
 export function syncNow():Promise<void>{if(!remote)return Promise.resolve();if(running){again=true;return running}
