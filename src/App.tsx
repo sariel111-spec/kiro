@@ -1,6 +1,6 @@
 import {useEffect,useRef,useState,type CSSProperties,type PointerEvent as RPE} from 'react';
-import {Sun,Moon,ChevronLeft,Cloud,CloudOff,Loader2,Download,Upload,Trash2,RotateCcw,ImagePlus,Check,Sparkles,Wallpaper,UserRound,TriangleAlert} from 'lucide-react';
-import {useStore,setHome,setSettings,saveAsset,prepareImage,connect,disconnect,getRemote,syncNow,exportBackup,importBackup,restoreRecord,purgeRecord,uid,type Kind,type Sticker} from './store';
+import {Sun,Moon,ChevronLeft,Cloud,CloudOff,Loader2,ClipboardPaste,Copy,Download,Upload,Trash2,RotateCcw,ImagePlus,Check,Sparkles,Wallpaper,UserRound,TriangleAlert} from 'lucide-react';
+import {useStore,setHome,setSettings,saveAsset,prepareImage,connect,disconnect,getRemote,syncNow,linkCode,readLinkCode,exportBackup,importBackup,restoreRecord,purgeRecord,uid,type Kind,type Sticker} from './store';
 import {kinds,appOrder} from './kinds';
 import Trace from './trace';
 import {stickers as art,appIcons} from './art';
@@ -84,7 +84,10 @@ function Decorator({chosen,patch,done,clearSel}:{chosen?:Sticker;patch:(id:strin
 function Settings({onBack,decorate}:{onBack:()=>void;decorate:()=>void}){
  const {state,sync}=useStore(),remote=getRemote(),[owner,setOwner]=useState(()=>/^([\w-]+)\.github\.io$/.exec(location.hostname)?.[1]||''),[repo,setRepo]=useState(()=>(location.hostname.endsWith('.github.io')&&location.pathname.split('/').filter(Boolean)[0]||'kiro')+'-data'),[token,setToken]=useState(''),[busy,setBusy]=useState(false),[err,setErr]=useState(''),file=useRef<HTMLInputElement>(null),face=useRef<HTMLInputElement>(null);
  const trash=state.records.filter(r=>r.deleted&&!r.extra.purged).sort((a,b)=>b.updated-a.updated),night=state.settings.theme==='night';
- const link=async()=>{setErr('');if(!owner.trim()||!repo.trim()||!token.trim())return setErr('三项都要填');setBusy(true);try{await connect({owner:owner.trim(),repo:repo.trim(),token:token.trim()});setToken('');toast('连上了，内容会自动同步')}catch(e){setErr((e as Error).message)}finally{setBusy(false)}};
+ const join=async(r:{owner:string;repo:string;token:string})=>{setBusy(true);try{await connect(r);setToken('');toast('连上了，之后会自动同步')}catch(e){setErr((e as Error).message)}finally{setBusy(false)}};
+ const link=()=>{setErr('');const code=readLinkCode(token);if(code)return join(code);if(!owner.trim()||!repo.trim()||!token.trim())return setErr('三项都要填');return join({owner:owner.trim(),repo:repo.trim(),token:token.trim()})};
+ const pasteCode=async()=>{setErr('');let text='';try{text=await navigator.clipboard.readText()}catch{return setErr('读不到剪贴板。把连接码粘贴到下面「令牌」那一格，再点「连接」也可以。')}const code=readLinkCode(text);if(!code)return setErr('剪贴板里不是连接码。先在已经连好的那台设备上点「复制连接码」。');return join(code)};
+ const copyCode=async()=>{try{await navigator.clipboard.writeText(linkCode());toast('连接码已复制。到另一台设备的 🐻 里点「粘贴连接码」')}catch{toast('复制失败，换个浏览器再试')}};
  const backup=async()=>{setBusy(true);try{const b=await exportBackup(),a=document.createElement('a'),d=new Date();a.href=URL.createObjectURL(b);a.download=`🐻-备份-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);toast('备份已下载')}finally{setBusy(false)}};
  const restore=async(files:FileList|null)=>{const f=files?.[0];if(!f)return;setBusy(true);try{const r=await importBackup(f);toast(`导入完成：新增 ${r.records} 条记录、${r.assets} 个文件`)}catch(e){toast((e as Error).message||'这个文件读不了')}finally{setBusy(false);if(file.current)file.current.value=''}};
  const avatar=async(files:FileList|null)=>{const f=files?.[0];if(f)setHome({avatar:await saveAsset(await prepareImage(f,600),f.name)})};
@@ -97,11 +100,14 @@ function Settings({onBack,decorate}:{onBack:()=>void;decorate:()=>void}){
    <section><h2>同步</h2>
     <p className="device-line">这台设备：{remote?'已连接':'还没连接'} · {sync.at?'上次同步 '+new Date(sync.at).toLocaleTimeString('zh-CN',{hour12:false}):'还没同步过'} · {state.records.filter(r=>!r.deleted).length} 条记录 · 痕迹点亮 {Object.values(state.marks).filter(m=>!m.off).length} · 版本 {BUILD}</p>
     {remote?<><p className={`sync-line ${sync.state}`}>{sync.state==='syncing'?<Loader2 size={15} className="spin"/>:sync.state==='error'?<TriangleAlert size={15}/>:<Cloud size={15}/>}{sync.message}<small>{remote.owner}/{remote.repo}</small></p>
-     <div className="rowbtns"><button className="ghost" onClick={()=>syncNow()}>现在同步一次</button><button className="ghost danger" onClick={()=>{disconnect();toast('已断开，这台设备上的内容还在')}}>断开</button></div></>
-    :<><p className="hint">现在内容只存在这台设备的浏览器里。连上你自己的私有 GitHub 仓库后，手机和电脑会自动同步，换设备也不会丢。</p>
+     <div className="rowbtns"><button className="ghost" onClick={copyCode}><Copy size={15}/>复制连接码</button><button className="ghost" onClick={()=>syncNow()}>现在同步一次</button><button className="ghost danger" onClick={()=>{disconnect();toast('已断开，这台设备上的内容还在')}}>断开</button></div></>
+    :<>{sync.state==='error'&&<p className="form-error" role="alert">{sync.message}</p>}<p className="hint">现在内容只存在这台设备的浏览器里。连上你自己的私有 GitHub 仓库后，手机和电脑会自动同步，换设备也不会丢。</p>
      <ol className="steps"><li>私有仓库已经建好，用户名和仓库名也填好了，不用动。</li><li>到 GitHub 生成一个只选中这个仓库的 fine-grained 令牌，权限选 Contents: Read and write。</li><li>把令牌粘贴到下面，点「连接」。令牌只保存在这台设备上，每台设备各填一次。</li></ol>
-     <div className="field-row"><label className="field"><span>GitHub 用户名</span><input value={owner} onChange={e=>setOwner(e.target.value)} autoCapitalize="off" autoCorrect="off"/></label><label className="field"><span>私有仓库名</span><input value={repo} onChange={e=>setRepo(e.target.value)} autoCapitalize="off" autoCorrect="off"/></label></div>
-     <label className="field"><span>令牌</span><input type="password" value={token} onChange={e=>setToken(e.target.value)} autoComplete="off" placeholder="github_pat_…"/></label>
+     <button className="primary paste-code" onClick={pasteCode} disabled={busy}><ClipboardPaste size={15}/>粘贴连接码</button>
+     <p className="hint">另一台设备已经连好的话，在那边点「复制连接码」，回到这里点上面这个按钮就行，不用找令牌。</p>
+     {/* Plain text fields with masking: a password field makes the phone offer the other site's saved login, which filled in that site's repository. */}
+     <div className="field-row"><label className="field"><span>GitHub 用户名</span><input name="kiro-owner" value={owner} onChange={e=>setOwner(e.target.value)} autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false}/></label><label className="field"><span>私有仓库名</span><input name="kiro-repo" value={repo} onChange={e=>setRepo(e.target.value)} autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false}/></label></div>
+     <label className="field"><span>令牌或连接码</span><input type="text" name="kiro-key" className="masked" value={token} onChange={e=>setToken(e.target.value)} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} data-1p-ignore data-lpignore="true" placeholder="github_pat_…"/></label>
      {err&&<p className="form-error" role="alert">{err}</p>}<button className="primary" onClick={link} disabled={busy}>{busy?<Loader2 size={15} className="spin"/>:<Cloud size={15}/>}连接</button></>}</section>
    <section><h2>备份</h2><p className="hint">备份文件里有全部记录和图片。导入不会覆盖现有内容，只补上缺的。</p>
     <div className="rowbtns"><button className="ghost" onClick={backup} disabled={busy}><Download size={15}/>导出备份</button><button className="ghost" onClick={()=>file.current?.click()} disabled={busy}><Upload size={15}/>导入备份</button></div><input ref={file} type="file" accept="application/json,.json" hidden onChange={e=>restore(e.target.files)}/></section>
