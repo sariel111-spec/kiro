@@ -22,7 +22,7 @@ const del=(k:string)=>tx('readwrite',s=>s.delete(k));
 const keys=()=>tx<IDBValidKey[]>('readonly',s=>s.getAllKeys());
 
 export const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,8);
-const defaultStickers=():Sticker[]=>[['sun',13,11,70,-8],['star',87,12,48,12],['sparkle',33,8,28,0],['rabbit',24,52,96,-8],['bear',73,55,116,6],['chips',49,62,58,10],['heart',50,45,36,-8],['daisy',90,40,42,-10],['mic',10,39,50,-14]].map(([art,x,y,size,rot])=>({id:uid(),art:art as string,x:x as number,y:y as number,size:size as number,rot:rot as number}));
+const defaultStickers=():Sticker[]=>[['sun',13,11,70,-8],['star',87,12,48,12],['sparkle',33,8,28,0],['rabbit',24,52,96,-8],['bear',73,55,116,6],['chips',49,62,58,10],['heart',50,45,36,-8],['daisy',90,40,42,-10],['mic',10,39,50,-14]].map(([art,x,y,size,rot],i)=>({id:'d'+i,art:art as string,x:x as number,y:y as number,size:size as number,rot:rot as number}));
 export const emptyState=():State=>({version:1,records:[{id:'seed-birthday',kind:'day',title:'周棋洛的生日',when:'',note:'',tags:[],images:[],extra:{date:'04-09',repeat:'每年'},order:0,fav:false,created:0,updated:0}],home:{stickers:defaultStickers(),updated:0},settings:{theme:'day',me:'',updated:0},marks:{}});
 
 let state:State=emptyState(),ready=false,sync:SyncInfo={state:'local',message:'只保存在这台设备上',at:0};
@@ -80,30 +80,38 @@ export async function prepareImage(file:Blob,max=2400):Promise<Blob>{if(!file.ty
 // ── GitHub ──
 export type Remote={owner:string;repo:string;token:string};
 let remote:Remote|null=null;
-const api=(path:string,init:RequestInit={},raw=false)=>fetch(`https://api.github.com/repos/${remote!.owner}/${remote!.repo}/contents/${path}`,{...init,headers:{Authorization:`Bearer ${remote!.token}`,Accept:raw?'application/vnd.github.raw+json':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(init.headers||{})}});
+const api=(path:string,init:RequestInit={},raw=false)=>fetch(`https://api.github.com/repos/${remote!.owner}/${remote!.repo}/contents/${path}`,{cache:'no-store',...init,headers:{Authorization:`Bearer ${remote!.token}`,Accept:raw?'application/vnd.github.raw+json':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28',...(init.headers||{})}});
 const b64=(buf:ArrayBuffer)=>{let s='';const u=new Uint8Array(buf);for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode(...u.subarray(i,i+0x8000));return btoa(s)};
 const utf8=(s:string)=>b64(new TextEncoder().encode(s).buffer as ArrayBuffer);
 async function fetchAsset(id:string){if(!remote)return null;try{const r=await api('assets/'+encodeURIComponent(id),{},true);return r.ok?await r.blob():null}catch{return null}}
-const newer=<T extends {updated:number}>(a:T,b:T|undefined)=>!b||a.updated>=b.updated?a:b;
+// On a tie the copy already in the repository wins, so every device settles on the same one.
+// (Taking the local copy on a tie made two devices overwrite each other's untouched defaults forever.)
+const newer=<T extends {updated:number}>(a:T,b:T|undefined)=>!b||a.updated>b.updated?a:b;
 export function merge(mine:State,theirs:State):State{const by=new Map(theirs.records.map(r=>[r.id,r]));for(const r of mine.records)by.set(r.id,newer(r,by.get(r.id)));
  const marks:Record<string,Mark>={...theirs.marks};for(const k in mine.marks)marks[k]=newer(mine.marks[k],marks[k]);
  return {version:1,records:[...by.values()],home:newer(mine.home,theirs.home),settings:newer(mine.settings,theirs.settings),marks}}
+// Two devices hold the same data with different key and record order; compare without it.
+const canon=(s:State)=>{const sort=(v:unknown):unknown=>Array.isArray(v)?v.map(sort):v&&typeof v==='object'?Object.fromEntries(Object.keys(v as object).sort().map(k=>[k,sort((v as Record<string,unknown>)[k])])):v;
+ return JSON.stringify(sort({...s,records:[...s.records].sort((a,b)=>a.id<b.id?-1:1)}))};
 const setSync=(s:SyncInfo['state'],message:string)=>{sync={state:s,message,at:Date.now()};emit()};
 let running:Promise<void>|null=null,again=false;
-export function syncNow():Promise<void>{if(!remote)return Promise.resolve();if(running){again=true;return running}
- running=(async()=>{setSync('syncing','正在同步…');try{
-   for(let attempt=0;attempt<3;attempt++){
+export function syncNow(quiet=false):Promise<void>{if(!remote)return Promise.resolve();if(running){again=true;return running}
+ running=(async()=>{if(!quiet)setSync('syncing','正在同步…');try{let saved=false;
+   for(let attempt=0;attempt<4&&!saved;attempt++){
     const head=await api('data/state.json');let sha:string|undefined,theirs:State|null=null;
-    if(head.status===200){const j=await head.json();sha=j.sha;const raw=await api('data/state.json',{},true);theirs=clean(await raw.json())}
+    if(head.status===200){const j=await head.json();sha=j.sha;
+     // small files come back inline; that keeps the text and its sha from the same moment
+     const text=j.content?new TextDecoder().decode(Uint8Array.from(atob(String(j.content).replace(/\s/g,'')),c=>c.charCodeAt(0))):await (await api('data/state.json',{},true)).text();theirs=clean(JSON.parse(text))}
     else if(head.status!==404)throw new Error(head.status===401?'令牌失效了，请在设置里重新填写':head.status===403?'令牌没有这个仓库的读写权限':'读取失败（'+head.status+'）');
-    const merged=theirs?merge(state,theirs):state,changedHere=JSON.stringify(merged)!==JSON.stringify(state);
+    const merged=theirs?merge(state,theirs):state,changedHere=canon(merged)!==canon(state);
     if(changedHere){state=merged;await put('state',state);emit()}
     const dirty=(await get<string[]>('dirty'))||[];
     for(const id of dirty){const a=await get<Asset>('asset:'+id);if(a){const r=await api('assets/'+encodeURIComponent(id),{method:'PUT',body:JSON.stringify({message:'add '+id,content:b64(await a.blob.arrayBuffer())})});if(!r.ok&&r.status!==422)throw new Error('有一个文件没传上去（'+r.status+'）')}
      await put('dirty',((await get<string[]>('dirty'))||[]).filter(x=>x!==id))}
-    if(theirs&&JSON.stringify(merged)===JSON.stringify(theirs))break;
+    if(theirs&&canon(merged)===canon(theirs)){saved=true;break}
     const w=await api('data/state.json',{method:'PUT',body:JSON.stringify({message:'sync',content:utf8(JSON.stringify(merged)),sha})});
-    if(w.ok)break;if(w.status!==409&&w.status!==422)throw new Error('保存失败（'+w.status+'）')}
+    if(w.ok)saved=true;else if(w.status!==409&&w.status!==422)throw new Error('保存失败（'+w.status+'）')}
+   if(!saved)throw new Error('另一台设备正在同时保存，过一会儿会再试');
    setSync('idle','已同步')}catch(e){setSync('error',(e as Error).message||'同步失败，稍后会再试')}})().finally(()=>{running=null;if(again){again=false;syncNow().catch(()=>{})}});
  return running}
 export async function connect(r:Remote){const probe=await fetch(`https://api.github.com/repos/${r.owner}/${r.repo}`,{headers:{Authorization:`Bearer ${r.token}`,Accept:'application/vnd.github+json'}});
@@ -124,6 +132,8 @@ export async function importBackup(file:Blob){const j=JSON.parse(await file.text
 export async function boot(){try{const s=await get<State>('state');if(s)state=clean(s);remote=(await get<Remote>('remote'))||null;if(remote)sync={state:'idle',message:'已连接',at:0}}catch{}
  ready=true;emit();if(remote)syncNow().catch(()=>{});
  window.addEventListener('online',()=>syncNow().catch(()=>{}));document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncNow().catch(()=>{})});
+ // the other device may be in use right now: look for its changes while this one is on screen
+ setInterval(()=>{if(remote&&document.visibilityState==='visible'&&navigator.onLine!==false)syncNow(true).catch(()=>{})},20000);
  // so the last keystrokes are not lost when the tab closes
  window.addEventListener('pagehide',()=>{put('state',state).catch(()=>{})});
  void keys}
