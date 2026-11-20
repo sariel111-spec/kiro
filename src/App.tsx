@@ -7,6 +7,7 @@ import {stickers as art,appIcons} from './art';
 import Screen,{Avatar} from './screens';
 import {Img,Toasts,toast,useAsset} from './ui';
 
+const BUILD=(document.querySelector('script[type=module][src*="assets/"]') as HTMLScriptElement|null)?.src.split('/').pop()?.slice(6,14)||'本地';
 type Route=Kind|'settings'|'trace'|'home';
 const routeOf=():Route=>{const h=location.hash.replace(/^#\/?/,'');return ([...appOrder,'settings','trace'] as string[]).includes(h)?h as Route:'home'};
 const pad=(n:number)=>String(n).padStart(2,'0');
@@ -94,6 +95,7 @@ function Settings({onBack,decorate}:{onBack:()=>void;decorate:()=>void}){
     <div className="rowbtns"><button className="ghost" onClick={decorate}><Sparkles size={15}/>装饰桌面</button><button className="ghost" onClick={()=>face.current?.click()}><UserRound size={15}/>换他的头像</button>{state.home.avatar&&<button className="ghost" onClick={()=>setHome({avatar:undefined})}>用回默认头像</button>}</div>
     <input ref={face} type="file" accept="image/*" hidden onChange={e=>avatar(e.target.files)}/></section>
    <section><h2>同步</h2>
+    <p className="device-line">这台设备：{remote?'已连接':'还没连接'} · {sync.at?'上次同步 '+new Date(sync.at).toLocaleTimeString('zh-CN',{hour12:false}):'还没同步过'} · {state.records.filter(r=>!r.deleted).length} 条记录 · 痕迹点亮 {Object.values(state.marks).filter(m=>!m.off).length} · 版本 {BUILD}</p>
     {remote?<><p className={`sync-line ${sync.state}`}>{sync.state==='syncing'?<Loader2 size={15} className="spin"/>:sync.state==='error'?<TriangleAlert size={15}/>:<Cloud size={15}/>}{sync.message}<small>{remote.owner}/{remote.repo}</small></p>
      <div className="rowbtns"><button className="ghost" onClick={()=>syncNow()}>现在同步一次</button><button className="ghost danger" onClick={()=>{disconnect();toast('已断开，这台设备上的内容还在')}}>断开</button></div></>
     :<><p className="hint">现在内容只存在这台设备的浏览器里。连上你自己的私有 GitHub 仓库后，手机和电脑会自动同步，换设备也不会丢。</p>
