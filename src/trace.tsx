@@ -1,5 +1,5 @@
 import {useMemo,useState,type ReactNode} from 'react';
-import {ChevronLeft,ChevronDown,Sun,Play,PenLine,ExternalLink,Undo2,Search} from 'lucide-react';
+import {ChevronLeft,ChevronDown,Sun,Play,PenLine,ExternalLink,Undo2,Search,X} from 'lucide-react';
 import {useStore,setMarks,addRecord,type Mark} from './store';
 import {seasons,dated,storyCards,rCards,late,sources,videos,datedThrough,type Chapter,type Season,type Group} from './catalog';
 import {Sheet,toast} from './ui';
@@ -43,7 +43,7 @@ function Go({onClick,label,has}:{onClick:()=>void;label:string;has:boolean}){
 export default function Trace({onBack}:{onBack:()=>void}){
  const {state}=useStore(),marks=state.marks;
  const [tab,setTab]=useState<Tab>('main'),[season,setSeason]=useState('s1'),[hisOnly,setHisOnly]=useState(false),[open,setOpen]=useState<string|null>(null);
- const [rar,setRar]=useState('全部'),[todo,setTodo]=useState(false),[info,setInfo]=useState<Info|null>(null),[pick,setPick]=useState(0);
+ const [rar,setRar]=useState('全部'),[todo,setTodo]=useState(false),[info,setInfo]=useState<Info|null>(null),[pick,setPick]=useState(0),[query,setQuery]=useState('');
  const show=(i:Info)=>{setPick(0);setInfo(i)};
  const lit=(id:string):Mark|null=>{const m=marks[id];return m&&!m.off?m:null};
  const done=useMemo(()=>units.filter(id=>{const m=marks[id];return m&&!m.off}).length,[marks]);
@@ -63,7 +63,7 @@ export default function Trace({onBack}:{onBack:()=>void}){
    return <section key={g.id} className="tr-group">
     <header><h2>{g.name}</h2><span>{dot(g.date)}</span><em>{n}/{g.chapters.length}</em></header>
     <ol className="tr-list">{list.map(c=>{const m=lit(c.id),parts=partIds(c),got=parts.filter(p=>lit(p)).length,cnt=hisCount(c),isOpen=open===c.id,ci=chapterInfo(c,g,cur);
-     return <li key={c.id} className={`tr-row ${m?'lit':''} ${c.special?'special':''}`}>
+     return <li key={c.id} id={'tr-'+c.id} className={`tr-row ${m?'lit':''} ${c.special?'special':''}`}>
       <Toggle on={!!m} onClick={()=>flipChapter(c)} label={c.n}/>
       <div className="tr-main">
        <div className="tr-line"><button className="tr-title" onClick={()=>parts.length?setOpen(isOpen?null:c.id):show(ci)} aria-expanded={parts.length?isOpen:undefined}>
@@ -94,21 +94,25 @@ export default function Trace({onBack}:{onBack:()=>void}){
    <div className="tr-main"><div className="tr-line"><button className="tr-title kb" onClick={()=>show(i)}>
     {x.rar&&<em data-r={x.rar}>{x.rar}</em>}<span>{x.name}{x.q&&<small>{flag}</small>}</span>{right&&<time>{right}</time>}</button><Go has={!!x.v} label={x.name} onClick={()=>show(i)}/></div>
     {sub&&<p className="tr-sub">{sub}</p>}{m&&<p className="tr-at">补于 {dot(m.at)}</p>}</div></li>};
+ const datedRow=(d:typeof dated[number],full=false)=>{const own=d.meet===d.name;return cardRow(d,(own?'':d.meet+' · ')+d.via,dot(d.date)+' · '+d.via,`周棋洛 ${d.name}${own?'':' '+d.meet.split('/')[0]}`,'约会',full?dot(d.date):short(d.date))};
+ const lateRow=(l:typeof late[number])=>cardRow(l,l.meet+' · '+l.via,l.via,`周棋洛 ${l.name} ${l.meet}`,'约会');
+ const storyRow=(k:typeof storyCards[number])=>cardRow(k,k.rumor?'传闻秘事「'+k.rumor+'」':'','主线配套',`周棋洛 ${k.name} 传闻秘事`,'主线',undefined,'位置待核');
+ const rChip=(r:typeof rCards[number])=><span key={r.id} className="tr-chip wide" data-on={!!lit(r.id)}><button aria-pressed={!!lit(r.id)} onClick={()=>flip([r.id],!lit(r.id),r.name)}>{r.name}</button>
+  <button className="go" aria-label={'去找 '+r.name} onClick={()=>show({id:r.id,title:r.name,sub:'R 卡',when:'R 卡',type:'约会',ids:[r.id],vids:[],q:`周棋洛 ${r.name}`})}><Search size={12}/></button></span>;
  const cards=<>
   <div className="tr-tools"><div className="chips">{rars.map(r=><button key={r} aria-pressed={rar===r} onClick={()=>setRar(r)}>{r}</button>)}<button aria-pressed={todo} onClick={()=>setTodo(!todo)}>只看没补的</button></div></div>
   {years.map(y=>{const all=dated.filter(d=>yearOf(d.date)===y),list=all.filter(d=>pass(d.rar,d.id));if(!list.length)return null;
    return <section key={y} className="tr-group">
     <header><h2>{y}</h2><span>{all.length} 张有约会的羁绊</span><em>{all.filter(d=>lit(d.id)).length}/{all.length}</em></header>
-    <ol className="tr-list">{list.map(d=>{const own=d.meet===d.name;return cardRow(d,(own?'':d.meet+' · ')+d.via,dot(d.date)+' · '+d.via,`周棋洛 ${d.name}${own?'':' '+d.meet.split('/')[0]}`,'约会',short(d.date))})}</ol>
+    <ol className="tr-list">{list.map(d=>datedRow(d))}</ol>
    </section>})}
   {rar==='全部'&&late.filter(l=>!todo||!lit(l.id)).length>0&&<section className="tr-group"><header><h2>2026 下半年</h2><span>7 月之后新上线的，日期和稀有度待补</span><em>{late.filter(l=>lit(l.id)).length}/{late.length}</em></header>
-   <ol className="tr-list">{late.filter(l=>!todo||!lit(l.id)).map(l=>cardRow(l,l.meet+' · '+l.via,l.via,`周棋洛 ${l.name} ${l.meet}`,'约会'))}</ol></section>}
+   <ol className="tr-list">{late.filter(l=>!todo||!lit(l.id)).map(lateRow)}</ol></section>}
   {(()=>{const list=storyCards.filter(k=>pass(k.rar,k.id));if(!list.length)return null;
    return <section className="tr-group"><header><h2>主线配套</h2><span>跟着主线出的羁绊，大多带一段传闻秘事</span><em>{storyCards.filter(k=>lit(k.id)).length}/{storyCards.length}</em></header>
-    <ol className="tr-list">{list.map(k=>cardRow(k,k.rumor?'传闻秘事「'+k.rumor+'」':'','主线配套',`周棋洛 ${k.name} 传闻秘事`,'主线',undefined,'位置待核'))}</ol></section>})()}
+    <ol className="tr-list">{list.map(storyRow)}</ol></section>})()}
   {(rar==='全部')&&<section className="tr-group"><header><h2>R 卡</h2><span>没有单独的约会，前 {rCards.filter(r=>!r.q).length} 张按上线先后排</span><em>{rCards.filter(r=>lit(r.id)).length}/{rCards.length}</em></header>
-   <div className="tr-parts loose"><div>{rCards.filter(r=>!todo||!lit(r.id)).map(r=><span key={r.id} className="tr-chip wide" data-on={!!lit(r.id)}><button aria-pressed={!!lit(r.id)} onClick={()=>flip([r.id],!lit(r.id),r.name)}>{r.name}</button>
-    <button className="go" aria-label={'去找 '+r.name} onClick={()=>show({id:r.id,title:r.name,sub:'R 卡',when:'R 卡',type:'约会',ids:[r.id],vids:[],q:`周棋洛 ${r.name}`})}><Search size={12}/></button></span>)}</div></div></section>}
+   <div className="tr-parts loose"><div>{rCards.filter(r=>!todo||!lit(r.id)).map(rChip)}</div></div></section>}
   <p className="tr-note">有约会的羁绊按上线日期整理到 {dot(datedThrough)}，之后的只收了已经有人上传剧情的几张。</p>
  </>;
 
@@ -128,6 +132,27 @@ export default function Trace({onBack}:{onBack:()=>void}){
    <ul className="tr-src">{sources.map(s=><li key={s.url}><a href={s.url} target="_blank" rel="noreferrer">{s.name}<ExternalLink size={13}/></a><p>{s.what}</p></li>)}</ul></section>
  </>;
 
+ const words=query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+ const has=(t:string)=>{const low=t.toLowerCase();return words.every(w=>low.includes(w))};
+ const found=useMemo(()=>words.length?{
+  ch:chapters.filter(({c,g,s})=>has(`${s.name} ${g.name} ${c.n} ${c.num??''}章 ${c.title} ${(c.extras||[]).join(' ')} ${(c.stages||[]).map(st=>(c.num??'')+'-'+st).join(' ')}`)),
+  dated:dated.filter(d=>has(`${d.name} ${d.meet} ${d.via} ${d.rar} ${dot(d.date)}`)),late:late.filter(l=>has(`${l.name} ${l.meet} ${l.via}`)),
+  story:storyCards.filter(k=>has(`${k.name} ${k.rumor||''} ${k.rar} 传闻秘事 主线配套`)),r:rCards.filter(r=>has(r.name+' R卡'))}:null,[query]);
+ const jump=(c:Chapter,s:Season)=>{setQuery('');setTab('main');setSeason(s.id);setHisOnly(false);setOpen(partIds(c).length?c.id:null);setTimeout(()=>document.getElementById('tr-'+c.id)?.scrollIntoView({block:'center',behavior:'smooth'}),120)};
+ const total=found?found.ch.length+found.dated.length+found.late.length+found.story.length+found.r.length:0,CAP=60;
+ const results=found&&<>
+  <p className="tr-note">{total?`找到 ${total} 条`:'没有找到。可以试试卡名、约会名、活动名、章节名，或者「第二季 54」「2021 SSR」这样拼着搜。'}</p>
+  {found.ch.length>0&&<section className="tr-group"><header><h2>主线</h2><span>点名字跳到那一章</span><em>{found.ch.length}</em></header>
+   <ol className="tr-list">{found.ch.slice(0,CAP).map(({c,g,s})=>{const m=lit(c.id),cnt=hisCount(c),ci=chapterInfo(c,g,s);return <li key={c.id} className={`tr-row ${m?'lit':''}`}>
+    <Toggle on={!!m} onClick={()=>flipChapter(c)} label={c.n}/>
+    <div className="tr-main"><div className="tr-line"><button className="tr-title" onClick={()=>jump(c,s)}><b>{s.name}</b><span>{c.n}{c.title?' '+c.title:''}</span>{cnt>0&&<i className={cnt>=8?'much':''}>他出场 {cnt} 处</i>}</button><Go has={ci.vids.length>0} label={c.n} onClick={()=>show(ci)}/></div>
+     <p className="tr-sub">{g.name}{g.date?' · '+dot(g.date):''}</p>{m&&<p className="tr-at">补于 {dot(m.at)}</p>}</div></li>})}</ol></section>}
+  {found.dated.length+found.late.length>0&&<section className="tr-group"><header><h2>约会羁绊</h2><span>按上线先后</span><em>{found.dated.length+found.late.length}</em></header>
+   <ol className="tr-list">{found.dated.slice(0,CAP).map(d=>datedRow(d,true))}{found.late.map(lateRow)}</ol></section>}
+  {found.story.length>0&&<section className="tr-group"><header><h2>主线配套</h2><span/><em>{found.story.length}</em></header><ol className="tr-list">{found.story.map(storyRow)}</ol></section>}
+  {found.r.length>0&&<section className="tr-group"><header><h2>R 卡</h2><span/><em>{found.r.length}</em></header><div className="tr-parts loose"><div>{found.r.map(rChip)}</div></div></section>}
+  {(found.ch.length>CAP||found.dated.length>CAP)&&<p className="tr-note">结果太多，只列了前 {CAP} 条，再多打几个字会更准。</p>}
+ </>;
  const tabs:[Tab,string,ReactNode][]=[['main','主线',main],['cards','羁绊',cards],['trail','痕迹',trail]];
  const im=info?lit(info.id):null,v=info?.vids[Math.min(pick,info.vids.length-1)];
  const mark=(on:boolean)=>{if(!info)return;if(info.part){if(!!lit(info.id)!==on)flipPart(info.part,info.id)}else setMarks(info.ids,on)};
@@ -135,8 +160,10 @@ export default function Trace({onBack}:{onBack:()=>void}){
   <header className="screen-head"><button className="back" onClick={onBack} aria-label="回到桌面"><ChevronLeft size={22}/></button>
    <div><h1>痕迹</h1><p>补上 {done} 条 · 共 {units.length} 条</p></div></header>
   <div className="screen-body">
+   <label className="tr-search"><Search size={17}/><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="搜章节、卡名、约会、活动" enterKeyHint="search" aria-label="在痕迹里搜索"/>{query&&<button type="button" onClick={()=>setQuery('')} aria-label="清空搜索"><X size={16}/></button>}</label>
+   {results?<div className="tr-body">{results}</div>:<>
    <div className="seg seg3" role="tablist">{tabs.map(([k,name])=><button key={k} role="tab" aria-selected={tab===k} aria-pressed={tab===k} onClick={()=>setTab(k)}>{name}</button>)}</div>
-   <div className="tr-body" key={tab}>{tabs.find(t=>t[0]===tab)![2]}</div>
+   <div className="tr-body" key={tab}>{tabs.find(t=>t[0]===tab)![2]}</div></>}
   </div>
   {info&&<Sheet title={info.title} onClose={()=>setInfo(null)} wide>
    <p className="tr-sheet-sub">{info.sub}</p>
