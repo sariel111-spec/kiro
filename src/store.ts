@@ -33,8 +33,10 @@ export function useStore(){return useSyncExternalStore(f=>{subs.add(f);return()=
 export const getState=()=>state;
 
 const KINDS=['story','moment','call','card','fan','quote','day'];
+// The After Class site also has records of kind "story"; its records carry a revision and a text timestamp.
+const ours=(r:unknown)=>{const o=r as Record<string,unknown>|null;return !!o&&typeof o.id==='string'&&KINDS.includes(o.kind as string)&&!('revision' in o)&&typeof o.updated!=='string'};
 const clean=(s:Partial<State>|undefined):State=>{const e=emptyState();if(!s||typeof s!=='object')return e;
- return {version:1,records:Array.isArray(s.records)?s.records.filter(r=>r&&typeof r.id==='string'&&KINDS.includes(r.kind)).map(r=>({...r,tags:r.tags||[],images:r.images||[],extra:r.extra||{},note:r.note||'',when:r.when||'',title:r.title||''})):[],
+ return {version:1,records:Array.isArray(s.records)?s.records.filter(ours).map(r=>({...r,tags:r.tags||[],images:r.images||[],extra:r.extra||{},note:r.note||'',when:r.when||'',title:r.title||''})):[],
   home:{...e.home,...(s.home||{}),stickers:Array.isArray(s.home?.stickers)?s.home!.stickers:e.home.stickers},settings:{...e.settings,...(s.settings||{})},marks:s.marks&&typeof s.marks==='object'?s.marks:{}}};
 
 let saveTimer=0,pushTimer=0;
@@ -98,7 +100,7 @@ const canon=(s:State)=>{const sort=(v:unknown):unknown=>Array.isArray(v)?v.map(s
 // replaces its data, so a file that is not ours is never merged and never written.
 const FOREIGN='这个仓库里存的是另一个网站的数据，不能用来同步 🐻。请把仓库名改成 kiro-data，并使用为它生成的令牌。';
 const foreign=(j:unknown)=>{if(!j||typeof j!=='object')return true;const o=j as Record<string,unknown>;if(o.app)return o.app!=='kiro-phone';
- return !Array.isArray(o.records)||(o.records as {kind?:string}[]).some(r=>r&&r.kind&&!KINDS.includes(r.kind))||'chronology' in o||'wall' in o||'gone' in o};
+ return !Array.isArray(o.records)||(o.records as unknown[]).some(r=>!ours(r))||'chronology' in o||'wall' in o||'gone' in o};
 class ForeignRepo extends Error{}
 const setSync=(s:SyncInfo['state'],message:string)=>{sync={state:s,message,at:Date.now()};emit()};
 let running:Promise<void>|null=null,again=false;
